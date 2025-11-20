@@ -43,7 +43,35 @@ bool AABB::intersect(const Ray &ray, Float *t_in, Float *t_out) const {
   //    for getting the inverse direction of the ray.
   // @see Min/Max/ReduceMin/ReduceMax
   //    for vector min/max operations.
-  UNIMPLEMENTED;
+  
+  Vec3f inv_dir = ray.safe_inverse_direction;
+  int sign[3];
+  sign[0] = (ray.direction.x < 0);
+  sign[1] = (ray.direction.y < 0);
+  sign[2] = (ray.direction.z < 0);
+  Vec3f bounds[2] = {low_bnd, upper_bnd};
+  Float tmin, tmax, tymin, tymax, tzmin, tzmax;
+  tmin = (bounds[sign[0]].x - ray.origin.x) * inv_dir.x;
+  tmax = (bounds[1-sign[0]].x - ray.origin.x) * inv_dir.x;
+  tymin = (bounds[sign[1]].y - ray.origin.y) * inv_dir.y;
+  tymax = (bounds[1-sign[1]].y - ray.origin.y) * inv_dir.y;
+  if ((tmin > tymax) || (tymin > tmax))
+      return false;
+  if (tymin < tmin)
+      tmin = tymin;
+  if (tymax > tmax)
+      tmax = tymax;
+  tzmin = (bounds[sign[2]].z - ray.origin.z) * inv_dir.z;
+  tzmax = (bounds[1-sign[2]].z - ray.origin.z) * inv_dir.z;
+  if ((tmin > tzmax) || (tzmin > tmax))
+      return false;
+  if (tzmin < tmin)
+      tmin = tzmin;
+  if (tzmax > tmax)
+      tmax = tzmax;
+  *t_in = tmin;
+  *t_out = tmax;
+  return tmin < tmax && tmax > ray.t_min && tmin < ray.t_max;
 }
 
 /* ===================================================================== *
@@ -90,13 +118,62 @@ bool TriangleIntersect(Ray &ray, const uint32_t &triangle_index,
   //
   // Useful Functions:
   // You can use @see Cross and @see Dot for determinant calculations.
+  
+  InternalVecType P = Cast<InternalScalarType>(ray.origin);
+  InternalScalarType u, v, t;
+  InternalVecType B_A = v1 - v0;
+  InternalVecType C_A = v2 - v0;
+  InternalVecType normal = Cross(B_A, C_A);
 
-  // Delete the following lines after you implement the function
-  InternalScalarType u = InternalScalarType(0);
-  InternalScalarType v = InternalScalarType(0);
-  InternalScalarType t = InternalScalarType(0);
-  UNIMPLEMENTED;
-
+  InternalScalarType normal_length_sq = Dot(normal, normal);
+  if (normal_length_sq < std::numeric_limits<InternalScalarType>::epsilon()) {
+    return false; 
+  }
+  InternalVecType n = Normalize(normal);
+  InternalScalarType d = Dot(n, v0);
+  
+  //t= (d-n·P) /(n·dir)
+  InternalScalarType n_dot_dir = Dot(n, dir);
+  if (std::abs(n_dot_dir) < std::numeric_limits<InternalScalarType>::epsilon()) {
+    return false; //pingxing
+  }
+  InternalScalarType n_dot_P = Dot(n, P);
+  t = (d - n_dot_P) / n_dot_dir;
+  if (t < static_cast<InternalScalarType>(ray.t_min) || 
+      t > static_cast<InternalScalarType>(ray.t_max)) {
+    return false;
+  }
+  InternalVecType Q = P + t*dir;
+  
+  //inside?
+  InternalVecType Q_A = Q - v0;  
+  InternalVecType Q_B = Q - v1;  
+  InternalVecType Q_C = Q - v2;  
+  InternalVecType cross1 = Cross(B_A, Q_A); 
+  InternalScalarType test1 = Dot(cross1, n);
+  if (Dot(Cross(B_A, Q_A), n)< InternalScalarType(0)) {
+    return false;
+  }
+  InternalVecType C_B = v2 - v1;  // C-B
+  InternalVecType cross2 = Cross(C_B, Q_B);  
+  InternalScalarType test2 = Dot(cross2, n);
+  if (test2 < InternalScalarType(0)) {
+    return false;
+  }
+  InternalVecType A_C = v0 - v2;  // A-C
+  InternalVecType cross3 = Cross(A_C, Q_C);  
+  InternalScalarType test3 = Dot(cross3, n);
+  if (test3 < InternalScalarType(0)) {
+    return false;
+  }
+  //barycentric
+  u = Dot(cross3, n) / Dot(Cross(B_A, C_A), n);
+  v = Dot(cross1, n) / Dot(Cross(B_A, C_A), n);
+  if (u < InternalScalarType(0) || v < InternalScalarType(0) ||
+      u + v > InternalScalarType(1)) {
+    return false;
+  }
+  
   // We will reach here if there is an intersection
 
   CalculateTriangleDifferentials(interaction,

@@ -51,18 +51,18 @@ void IntersectionTestIntegrator::render(ref<Camera> camera, ref<Scene> scene) {
         // pixel sample positions as 2 floats.
 
         // You should assign the following two variables
-        // const Vec2f &pixel_sample = ...
-        // auto ray = ...
+        const Vec2f &pixel_sample = sampler.getPixelSample();
+        auto ray = camera->generateDifferentialRay(pixel_sample.x, pixel_sample.y);
 
         // After you assign pixel_sample and ray, you can uncomment the
         // following lines to accumulate the radiance to the film.
         //
         //
         // Accumulate radiance
-        // assert(pixel_sample.x >= dx && pixel_sample.x <= dx + 1);
-        // assert(pixel_sample.y >= dy && pixel_sample.y <= dy + 1);
-        // const Vec3f &L = Li(scene, ray, sampler);
-        // camera->getFilm()->commitSample(pixel_sample, L);
+        assert(pixel_sample.x >= dx && pixel_sample.x <= dx + 1);
+        assert(pixel_sample.y >= dy && pixel_sample.y <= dy + 1);
+        const Vec3f &L = Li(scene, ray, sampler);
+        camera->getFilm()->commitSample(pixel_sample, L);
       }
     }
   }
@@ -104,7 +104,9 @@ Vec3f IntersectionTestIntegrator::Li(
       // @see SurfaceInteraction::spawnRay
       //
       // You should update ray = ... with the spawned ray
-      UNIMPLEMENTED;
+      Float pdf;
+      interaction.bsdf->sample(interaction, sampler, &pdf);
+      ray = interaction.spawnRay(interaction.wi);
       continue;
     }
 
@@ -119,7 +121,9 @@ Vec3f IntersectionTestIntegrator::Li(
   }
 
   if (!diffuse_found) {
-    return color;
+    // For rays that don't hit diffuse surfaces (e.g., through transparent objects),
+    // return a small ambient light contribution to avoid completely black areas
+    return Vec3f(0.1f, 0.1f, 0.1f);  // Ambient light
   }
 
   color = directLighting(scene, interaction);
@@ -148,7 +152,11 @@ Vec3f IntersectionTestIntegrator::directLighting(
   //
   //    You can use iteraction.p to get the intersection position.
   //
-  UNIMPLEMENTED;
+  SurfaceInteraction test;
+  Ray shadow_ray(interaction.p, light_dir, RAY_DEFAULT_MIN, dist_to_light);
+  if (scene->intersect(shadow_ray, test)) {
+    return color;
+  }
 
   // Not occluded, compute the contribution using perfect diffuse diffuse model
   // Perform a quick and dirty check to determine whether the BSDF is ideal
@@ -170,7 +178,8 @@ Vec3f IntersectionTestIntegrator::directLighting(
 
     // You should assign the value to color
     // color = ...
-    UNIMPLEMENTED;
+    // Simple diffuse lighting: albedo * light_flux * cos_theta
+    color = bsdf->evaluate(interaction) * point_light_flux * cos_theta / (dist_to_light * dist_to_light);
   }
 
   return color;
