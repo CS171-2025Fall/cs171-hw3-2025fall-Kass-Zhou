@@ -133,7 +133,7 @@ typename BVHTree<_>::IndexType BVHTree<_>::build(
   for (IndexType span_index = span_left; span_index < span_right; ++span_index)
     prebuilt_aabb.unionWith(nodes[span_index].getAABB());
 
-  // TODO(HW3): setup the stop criteria
+  // TODO: setup the stop criteria
   //
   // You should fill in the stop criteria here.
   //
@@ -143,7 +143,7 @@ typename BVHTree<_>::IndexType BVHTree<_>::build(
   // @see span_left: The left index of the current span
   // @see span_right: The right index of the current span
   //
-  /* if ( */ UNIMPLEMENTED; /* ) */
+  if (depth >=CUTOFF_DEPTH || span_right-span_left == 1)
   {
     // create leaf node
     const auto &node = nodes[span_left];
@@ -173,7 +173,7 @@ use_median_heuristic:
     // after which, all centroids in [span_left, split) are LT than right
     // clang-format off
 
-    // TODO(HW3): implement the median split here
+    // TODO: implement the median split here
     //
     // You should sort the nodes in [span_left, span_right) according to
     // their centroid's `dim`-th dimension, such that all nodes in
@@ -181,7 +181,11 @@ use_median_heuristic:
     //
     // You may find `std::nth_element` useful here.
 
-    UNIMPLEMENTED;
+    std::nth_element(
+      nodes.begin() + span_left, nodes.begin() + split, nodes.begin() + span_right,
+      [dim](const NodeType &a, const NodeType &b) {
+          return a.getAABB().getCenter()[dim] < b.getAABB().getCenter()[dim];
+      });
 
     // clang-format on
   } else if (hprofile == EHeuristicProfile::ESurfaceAreaHeuristic) {
